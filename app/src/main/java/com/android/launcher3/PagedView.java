@@ -4,10 +4,14 @@ import android.content.Context;
 import android.util.FloatProperty;
 import android.view.View;
 
+import com.android.launcher3.touch.PagedOrientationHandler;
+
 public class PagedView extends android.view.View{
     protected boolean mIsRtl;
     protected int mPageSpacing;
     protected boolean mFirstLayout;
+    private PagedOrientationHandler mOrientationHandler;
+
 
     public boolean pageScrollsInitialized() {
         return true;
@@ -31,5 +35,9 @@ public class PagedView extends android.view.View{
     }
 
     protected void onPageEndTransition() {
+    }
+
+    protected PagedOrientationHandler getPagedOrientationHandler() {
+        return mOrientationHandler;
     }
 }

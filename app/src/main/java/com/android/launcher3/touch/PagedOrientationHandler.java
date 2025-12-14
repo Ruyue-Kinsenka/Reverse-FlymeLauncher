@@ -5,5 +5,5 @@ import android.view.View;
 
 public interface PagedOrientationHandler {
     FloatProperty<View> getPrimaryViewTranslate();
-
+    int getPrimaryScroll(View view);
 }

@@ -9,22 +9,26 @@ import android.widget.Toast;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Insettable;
 import com.android.launcher3.PagedView;
+import com.android.launcher3.PagedViewOrientedState;
 import com.android.launcher3.anim.Interpolators;
 import com.android.launcher3.statemanager.BaseState;
 import com.android.launcher3.statemanager.StatefulActivity;
 import com.android.launcher3.touch.PagedOrientationHandler;
 import com.android.launcher3.util.IntSet;
 import com.android.quickstep.GestureState;
-import com.android.quickstep.RemoteTargetGluer;
+import com.android.quickstep.orientation.RecentsPagedOrientationHandler;
+import com.android.quickstep.util.RecentsOrientedState;
 import com.android.quickstep.util.TaskVisualsChangeListener;
 import com.android.launcher3.config.FeatureFlags;
-import com.android.quickstep.RemoteTargetGluer;
-import com.android.quickstep.util.TaskViewSimulator;
 import com.meizu.flyme.launcher.quickstep.special.FixFor1214345;
+import com.android.launcher3.ActionsView;
+import com.android.launcher3.FlymeClearAllButton;
 
 import org.ruyue.flymelauncher.StackedRecentsAppLayoutHelper;
 
 import java.util.function.Consumer;
+
+import me.ruyue.iosrecentstyle.util.IosRecentsMath;
 
 public class RecentsView<ACTIVITY_TYPE extends StatefulActivity<STATE_TYPE>, STATE_TYPE extends BaseState<STATE_TYPE>> extends PagedView implements Insettable, TaskVisualsChangeListener {
 
@@ -36,6 +40,8 @@ public class RecentsView<ACTIVITY_TYPE extends StatefulActivity<STATE_TYPE>, STA
     protected int mRunningTaskViewId;
     protected boolean mRunningTaskTileHidden;
     protected PagedOrientationHandler mOrientationHandler;
+    private OverviewActionsView mActionsView;
+    private boolean mOverviewGridEnabled; 
     protected final ACTIVITY_TYPE mActivity;
     private final IntSet mTopRowIdSet;
 
@@ -54,6 +60,9 @@ public class RecentsView<ACTIVITY_TYPE extends StatefulActivity<STATE_TYPE>, STA
     private boolean mShowEmptyMessage;
     private boolean mGestureActive;
     protected GestureState.GestureEndTarget mCurrentGestureEndTarget;
+    private RecentsOrientedState mOrientationState;
+    private ClearAllButton mFlymeClearAllButton;
+
 
 
     public RecentsView(Context context, ACTIVITY_TYPE mActivity, IntSet mTopRowIdSet, Rect mLastComputedTaskSize, Rect mLastComputedDesktopTaskSize, Rect mLastComputedGridSize, Rect mLastComputedGridTaskSize, Toast mSplitUnsupportedToast, Rect mTempRect) {
@@ -67,6 +76,20 @@ public class RecentsView<ACTIVITY_TYPE extends StatefulActivity<STATE_TYPE>, STA
         this.mLastComputedGridTaskSize = mLastComputedGridTaskSize;
         this.mSplitUnsupportedToast = mSplitUnsupportedToast;
         this.mTempRect = mTempRect;
+        this.mFlymeClearAllButton = new ClearAllButton();
+        final RecentsOrientedState mOrientationState;
+        this.mActionsView = new OverviewActionsView();
+        this.mOrientationHandler = new PagedOrientationHandler() {
+            @Override
+            public FloatProperty<View> getPrimaryViewTranslate() {
+                return null;
+            }
+            
+            @Override
+            public int getPrimaryScroll(View view) {
+                return 0;
+            }
+        };
     }
 
     public boolean isSplitSelectionActive() {
@@ -693,8 +716,87 @@ public class RecentsView<ACTIVITY_TYPE extends StatefulActivity<STATE_TYPE>, STA
     public void redrawLiveTile() {
     }
 
-    public void updateCurveProperties() {
+    public Rect getLastComputedTaskSize() {
+        return mLastComputedTaskSize;
     }
+
+    public void updateCurveProperties() {
+        if (getPageCount() == 0 || getPageAt(0).getMeasuredWidth() == 0) {
+            return;
+        }
+        int scroll = getPagedOrientationHandler().getPrimaryScroll(this);
+        this.mFlymeClearAllButton.onRecentsViewScroll(scroll, this.mOverviewGridEnabled);
+        this.mActionsView.getIndexScrollAlpha().updateValue(1.0f - this.mFlymeClearAllButton.getScrollAlpha());
+        if (!showAsGrid()) {
+            IosRecentsMath math = IosRecentsMath.getInstance();
+            int halfScreen = getMeasuredWidth() / 2;
+            int taskWidth = getLastComputedTaskSize().width();
+
+            for (int i = 0; i < getTaskViewCount(); i++) {
+                View child = getChildAt(i);
+                if (child instanceof TaskView) {
+                    TaskView taskView = (TaskView) child;
+
+                    // Correctly calculate distance using Layout Position vs Scroll Position
+                    int childCenter = child.getLeft() + child.getMeasuredWidth() / 2;
+                    int screenCenter = scroll + getMeasuredWidth() / 2;
+                    float dist = childCenter - screenCenter;
+
+                    // Map dist to f2 (spline parameter)
+                    // Center (dist=0) -> f2=3.0
+                    float f2 = 3.0f + (dist / (float) taskWidth);
+
+                    // Calculate raw spline values
+                    float rawScale = (float) math.getValue(IosRecentsMath.SPLINE_SCALE, f2);
+                    float rawAlpha = (float) math.getValue(IosRecentsMath.SPLINE_ALPHA, f2);
+                    float rawX = (float) math.getValue(IosRecentsMath.SPLINE_X_COORD, f2);
+                    float rawY = (float) math.getValue(IosRecentsMath.SPLINE_Y_COORD, f2);
+                    float rotationY = (float) math.getValue(IosRecentsMath.SPLINE_ROTATION_Y, f2);
+
+                    // Get anchor values at center (f2=3.0) to normalize
+                    float centerScale = (float) math.getValue(IosRecentsMath.SPLINE_SCALE, 3.0f);
+                    float centerY = (float) math.getValue(IosRecentsMath.SPLINE_Y_COORD, 3.0f);
+                    float centerX = (float) math.getValue(IosRecentsMath.SPLINE_X_COORD, 3.0f);
+
+                    // Normalize Scale: Center should be 1.0f
+                    float scale = rawScale / centerScale;
+
+                    // Determine Visual Dimensions (Short vs Long axis) to match MIUI logic
+                    // Spline X is scaled by the Short Axis (Stack bunching)
+                    // Spline Y is scaled by the Long Axis (Vertical offset)
+                    boolean isLandscape = getMeasuredWidth() > getMeasuredHeight();
+                    float visualWidth = isLandscape ? getMeasuredHeight() : getMeasuredWidth(); // Short Axis
+                    float visualHeight = isLandscape ? getMeasuredWidth() : getMeasuredHeight(); // Long Axis
+
+                    // Normalize X & Y: Center should be 0 translation
+                    float translationY = (rawY - centerY) * visualHeight;
+                    float targetVisualOffsetX = (rawX - centerX) * visualWidth;
+
+                    taskView.setScaleX(scale);
+                    taskView.setScaleY(scale);
+                    taskView.setAlpha(rawAlpha);
+                    taskView.setRotationY(rotationY);
+
+                    // Override linear layout with spline layout
+                    taskView.setCurveTranslationX(targetVisualOffsetX - dist);
+                    taskView.setCurveTranslationY(translationY);
+
+                    // Ensure correct stacking order (tasks to the right are ON TOP)
+                    // Higher index = Rightmost = Newest = Top
+                    taskView.setTranslationZ(-i);
+                }
+            }
+        }
+    }
+
+    public View getPageAt(int i) {
+        return null;
+    }
+
+    public int getPageCount() {
+        return 0;
+    }
+
 
     public void runActionOnRemoteHandles(Consumer consumer) {
     }
@@ -715,5 +817,15 @@ public class RecentsView<ACTIVITY_TYPE extends StatefulActivity<STATE_TYPE>, STA
     public TaskView getRunningTaskView() {
         return null;
     }
+
+
+    public PagedOrientationHandler getPagedOrientationHandler() {
+        return (PagedOrientationHandler) super.getPagedOrientationHandler();
+    }
+
+    public RecentsOrientedState getPagedViewOrientedState() {
+        return this.mOrientationState;
+    }
+
 
 }

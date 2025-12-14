@@ -10,4 +10,10 @@ public class ClearAllButton {
     public void setGridProgress(float gridProgress) {
     }
 
+    public void onRecentsViewScroll(int scroll, boolean mOverviewGridEnabled) {
+    }
+
+    public float getScrollAlpha() {
+        return 0.1f;
+    }
 }

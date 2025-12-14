@@ -1,67 +1,83 @@
-package com.android.quickstep.views;
+package com.android.quickstep.views
 
-import android.content.Context;
-import android.util.FloatProperty;
+import android.content.Context
+import android.util.FloatProperty
+import android.view.View
 
-public class TaskView extends android.view.View {
-    public TaskView(Context context) {
-        super(context);
+open class TaskView(context: Context) : View(context) {
+    
+    private var dismissTranslationX: Float = 0f
+    private var taskOffsetTranslationX: Float = 0f
+    private var taskResistanceTranslationX: Float = 0f
+    private var splitSelectTranslationX: Float = 0f
+    private var gridEndTranslationX: Float = 0f
+    
+    private var dismissTranslationY: Float = 0f
+    private var taskOffsetTranslationY: Float = 0f
+    private var taskResistanceTranslationY: Float = 0f
+    private var splitSelectTranslationY: Float = 0f
+
+    private var curveTransX = 0f
+    private var curveTransY = 0f
+    
+    fun getPrimaryTaskOffsetTranslationProperty(): FloatProperty<TaskView>? {
+        return null
+    }
+    
+    fun isFocusedTask(): Boolean {
+        return false
+    }
+    
+    fun setGridTranslationY(gridTranslationY: Float) {
+    }
+    
+    fun isDesktopTask(): Boolean {
+        return true
+    }
+    
+    fun getTaskViewId(): Int {
+        return 0
+    }
+    
+    fun getScrollAdjustment(b: Boolean): Float {
+        return 0.1f
+    }
+    
+    fun setGridTranslationX(v: Float) {
+    }
+    
+    fun getSecondaryTaskOffsetTranslationProperty(): FloatProperty<TaskView>? {
+        return null
+    }
+    
+    public fun getPersistentTranslationX(): Float {
+        return 0f
+    }
+    
+    public fun getPersistentTranslationY(): Float {
+        return 0f
+    }
+    
+    private fun applyTranslationX() {
+        setTranslationX(dismissTranslationX + taskOffsetTranslationX + taskResistanceTranslationX + splitSelectTranslationX + gridEndTranslationX + getPersistentTranslationX() + curveTransX)
+    }
+    
+    private fun applyTranslationY() {
+        setTranslationY(dismissTranslationY + taskOffsetTranslationY + taskResistanceTranslationY + splitSelectTranslationY + getPersistentTranslationY() + curveTransY )
     }
 
-    public void setVisibility(int gone) {
+    fun setCurveTranslationX(x: Float) {
+        curveTransX = x
+        applyTranslationX()
     }
 
-    public void setAlpha(float v) {
+    fun setCurveTranslationY(y: Float) {
+        curveTransY = y
+        applyTranslationY()
     }
 
-
-    public float getTranslationX() {
-        return 0.1f;
-    }
-
-    public void setTranslationX(float translationX) {
-    }
-
-    public void setTranslationY(float translationY) {
-    }
-
-    public void setScaleX(float scale) {
-    }
-
-    public void setScaleY(float scale) {
-    }
-
-    public void setTranslationZ(int i) {
-    }
-
-    public FloatProperty<TaskView> getPrimaryTaskOffsetTranslationProperty() {
-        return null;
-    }
-
-    public boolean isFocusedTask() {
-        return false;
-    }
-
-    public void setGridTranslationY(float gridTranslationY) {
-    }
-
-
-    public boolean isDesktopTask() {
-        return true;
-    }
-
-    public int getTaskViewId() {
-        return 0;
-    }
-
-    public float getScrollAdjustment(boolean b) {
-        return 0.1f;
-    }
-
-    public void setGridTranslationX(float v) {
-    }
-
-    public FloatProperty getSecondaryTaskOffsetTranslationProperty() {
-        return null;
+    fun resetViewTransforms() {
+        curveTransX = 0f
+        curveTransY = 0f
     }
 }
